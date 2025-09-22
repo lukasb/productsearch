@@ -57,9 +57,8 @@ def extract_product_info(search_results: Dict[str, Any]) -> List[Dict[str, Any]]
 
     return products
 
-def check_categories_batch(products_batch: List[Dict], anthropic_key: str) -> Dict[str, Dict]:
+def check_categories_batch(products_batch: List[Dict], client: anthropic.Anthropic) -> Dict[str, Dict]:
     """Check a batch of products against their categories using Sonnet"""
-    client = anthropic.Anthropic(api_key=anthropic_key)
 
     # Define the tool for structured responses
     category_check_tool = {
@@ -198,6 +197,26 @@ def process_csv_data(df: pd.DataFrame, scrapingbee_key: str, anthropic_key: str,
     if anthropic_key and not results_df.empty and 'category' in results_df.columns:
         status_text.text("Checking categories with Sonnet...")
 
+        # Initialize Anthropic client once
+        try:
+            # Try to initialize without proxy settings
+            import os
+            # Clear any proxy environment variables temporarily
+            proxy_vars = {}
+            for var in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:
+                if var in os.environ:
+                    proxy_vars[var] = os.environ.pop(var)
+
+            client = anthropic.Anthropic(api_key=anthropic_key)
+
+            # Restore proxy vars
+            for var, value in proxy_vars.items():
+                os.environ[var] = value
+
+        except Exception as e:
+            st.error(f"Failed to initialize Anthropic client: {e}")
+            return results_df
+
         # Filter products that need checking
         products_to_check = []
         for idx, row in results_df.iterrows():
@@ -217,7 +236,7 @@ def process_csv_data(df: pd.DataFrame, scrapingbee_key: str, anthropic_key: str,
                 batch = products_to_check[i:i+batch_size]
                 status_text.text(f"Processing category batch {i//batch_size + 1}/{total_batches}")
 
-                results = check_categories_batch(batch, anthropic_key)
+                results = check_categories_batch(batch, client)
 
                 # Update DataFrame with results
                 for product in batch:

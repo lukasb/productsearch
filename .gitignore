@@ -1,0 +1,5 @@
+.DS_Store
+.env.local
+.env.local.example
+sample_items.csv
+sample_items_results.csv
